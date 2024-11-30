@@ -64,27 +64,3 @@ jobs:
           dockerfile_name: Dockerfile
           docker_options: "--no-cache"
           process_type: web
-
-      # Step 7: Ensure the worker process type is recognized
-      - name: Ensure worker process type is recognized
-        run: |
-          heroku config:set WORKER_COMMAND="sh ./run.sh" --app ${{ secrets.HEROKU_APP_NAME }}
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-
-      # Step 8: Scale the worker dyno to 1 and web dyno to 0
-      - name: Scale Heroku dynos
-        run: |
-          heroku ps:scale worker=1 web=0 --app ${{ secrets.HEROKU_APP_NAME }}
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-
-      # Step 9: Log success message
-      - name: Log deployment success
-        if: success()  # This runs only if all previous steps were successful
-        run: echo "Deployment to Heroku was successful!"
-
-      # Step 10: Log deployment failure
-      - name: Log deployment failure
-        if: failure()  # This runs only if any previous steps failed
-        run: echo "Deployment to Heroku failed. Please check the build logs for errors."
