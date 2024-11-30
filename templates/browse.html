@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Directory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Snap Tracker</h1>
+    </header>
+
+    <div class="container">
+        <h2>Browsing: {{ directory }}</h2>
+
+        <h3>Contents</h3>
+        {% if contents %}
+            {# Split the directory path and check its length #}
+            {% set directory_parts = directory.split('/') %}
+            <ul class="{% if directory_parts|length > 2 %}last-level-list{% else %}directory-list{% endif %}">
+                {% for item in contents %}
+                    <li>
+                        {% if item.type == 'directory' %}
+                            <a href="{{ url_for('browse', subpath=directory + '/' + item.name) }}">{{ item.name }}</a>
+                        {% else %}
+                            <a href="{{ url_for('download_file', filename=directory + '/' + item.name) }}">{{ item.name }}</a>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No contents available in this directory.</p>
+        {% endif %}
+
+        <a href="{{ url_for('index') }}">Back to index</a>
+    </div>
+
+    <footer>
+        <p>&copy; Karmathecoder</p>
+    </footer>
+</body>
+</html>

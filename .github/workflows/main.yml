@@ -52,6 +52,9 @@ jobs:
           echo "TELEGRAM_API_TOKEN=${{ secrets.TELEGRAM_API_TOKEN }}" >> .env
           echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
           echo "DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }}" >> .env
+          echo "WEB_SECRET_KEY=${{ secrets.WEB_SECRET_KEY }}" >> .env
+          echo "WEB_USERNAME=${{ secrets.WEB_USERNAME }}" >> .env
+          echo "WEB_PASSWORD=${{ secrets.WEB_PASSWORD }}" >> .env
 
       # Step 6: Build, Push and Release a Docker container to Heroku
       - name: Build, Push and Release a Docker container to Heroku

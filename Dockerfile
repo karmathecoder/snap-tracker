@@ -1,29 +1,28 @@
-# Dockerfile
-
 FROM python:3.10-alpine
+
+# Install necessary dependencies for running multiple processes and Gunicorn
+RUN apk update && apk add --no-cache supervisor 
+
+# Set the working directory to /app
+WORKDIR /app
 
 # Copy requirements file to the container
 COPY Requirements.txt .
 
+# Install dependencies
 RUN pip install --no-cache-dir -r Requirements.txt
 
 # Copy the entire project to the container
 COPY . .
 
-# Set execution permission for the script
-RUN chmod +x run.sh
+# Create the logs directory inside the container
+RUN mkdir -p /app/logs
 
-# Accept environment variables at runtime (these will come from GitHub Secrets)
-# ARG SNAPCHAT_USERNAME
-# ARG TELEGRAM_API_TOKEN
-# ARG TELEGRAM_CHAT_ID
-# ARG DOWNLOAD_DIR
+# Supervisor configuration for running multiple processes
+COPY supervisord.conf /etc/supervisord.conf
 
-# # Optionally, set default values or pass the build-time arguments as environment variables
-# ENV SNAPCHAT_USERNAME=${SNAPCHAT_USERNAME}
-# ENV TELEGRAM_API_TOKEN=${TELEGRAM_API_TOKEN}
-# ENV TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
-# ENV DOWNLOAD_DIR=${DOWNLOAD_DIR:-./downloads}
+# Expose Flask's default port (5000 for Gunicorn)
+EXPOSE $PORT
 
-# Define the entry point for the container
-ENTRYPOINT [ "/bin/sh", "./run.sh" ]
+# Run supervisor to manage processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
