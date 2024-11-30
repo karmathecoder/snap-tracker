@@ -20,7 +20,13 @@ jobs:
           echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
           echo "DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }}" >> .env
 
-      # Step 3: Build, Push and Release a Docker container to Heroku
+      # Step 3: Set Heroku stack to 'container'
+      - name: Set Heroku stack to container
+        run: |
+          echo "Setting Heroku stack to container..."
+          heroku stack:set container --app ${{ secrets.HEROKU_APP_NAME }}
+
+      # Step 4: Build, Push and Release a Docker container to Heroku
       - name: Build, Push and Release a Docker container to Heroku
         uses: gonuit/heroku-docker-deploy@v1.3.3
         with:
@@ -29,5 +35,4 @@ jobs:
           heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
           dockerfile_directory: ./
           dockerfile_name: Dockerfile
-          docker_options: "--no-cache"
           process_type: web
