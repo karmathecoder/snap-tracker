@@ -15,6 +15,7 @@ jobs:
           heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
           heroku_email: ${{ secrets.HEROKU_APP_NAME }}
           usedocker: true
+          stack: "container"
           docker_build_args: |
             SNAPCHAT_USERNAME
             TELEGRAM_API_TOKEN
