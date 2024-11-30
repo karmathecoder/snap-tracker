@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy to heroku
 
 on:
   push:
@@ -8,21 +8,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: akhileshns/heroku-deploy@v3.9.9 # This is the action
+      # Step 1: Check out your repository
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Step 2: Create .env file with environment variables from GitHub Secrets
+      - name: Create .env file
+        run: |
+          echo "SNAPCHAT_USERNAME=${{ secrets.SNAPCHAT_USERNAME }}" >> .env
+          echo "TELEGRAM_API_TOKEN=${{ secrets.TELEGRAM_API_TOKEN }}" >> .env
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+          echo "DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }}" >> .env
+
+      # Step 3: Build, Push and Release a Docker container to Heroku
+      - name: Build, Push and Release a Docker container to Heroku
+        uses: gonuit/heroku-docker-deploy@v1.3.3
         with:
+          email: ${{ secrets.HEROKU_EMAIL }}
           heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
           heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-          heroku_email: ${{ secrets.HEROKU_APP_NAME }}
-          usedocker: true
-          stack: "container"
-          docker_build_args: |
-            SNAPCHAT_USERNAME
-            TELEGRAM_API_TOKEN
-            TELEGRAM_CHAT_ID
-            DOWNLOAD_DIR
-        env:
-          SNAPCHAT_USERNAME: ${{ secrets.SNAPCHAT_USERNAME }}
-          TELEGRAM_API_TOKEN: ${{ secrets.TELEGRAM_API_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          DOWNLOAD_DIR: ${{ secrets.DOWNLOAD_DIR }}
+          dockerfile_directory: ./
+          dockerfile_name: Dockerfile
+          docker_options: "--no-cache"
+          process_type: web
