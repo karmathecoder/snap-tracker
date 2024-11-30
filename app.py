@@ -37,6 +37,16 @@ def list_directory_contents(directory):
         pass
     return contents
 
+def list_zip_files_in_pwd():
+    contents = []
+    try:
+        for item in os.listdir('.'):  # '.' refers to the current working directory
+            if os.path.isfile(item) and item.endswith('.zip'):
+                contents.append({'name': item, 'type': 'file'})
+    except FileNotFoundError:
+        pass
+    return contents
+
 
 @app.route('/')
 def index():
@@ -44,7 +54,8 @@ def index():
         # List the contents of the base directories
         downloads_contents = list_directory_contents(DOWNLOADS_DIR)
         logs_contents = list_directory_contents(LOGS_DIR)
-        return render_template('index.html', downloads=downloads_contents, logs=logs_contents)
+        zip_files = list_zip_files_in_pwd()  # List zip files in the current directory
+        return render_template('index.html', downloads=downloads_contents, logs=logs_contents, zip_files=zip_files)
     return redirect(url_for('login'))
 
 
@@ -90,19 +101,28 @@ def browse(subpath):
     return "Directory not found."
 
 
-# Route to download files
 @app.route('/files/<path:filename>')
 def download_file(filename):
     # Decode and normalize the filename
     filename = unquote(filename)  # Decode any URL-encoded characters
     download_path = os.path.join(DOWNLOADS_DIR, filename)
     log_path = os.path.join(LOGS_DIR, filename)
+    
+    # Current working directory (PWD) check
+    pwd_path = os.path.join(os.getcwd(), filename)  # PWD is the current directory where the app is running
 
-    # Check if the file exists in either directory
+    # Check if the file exists in the downloads directory
     if os.path.exists(download_path) and os.path.isfile(download_path):
         return send_from_directory(DOWNLOADS_DIR, filename)
+
+    # Check if the file exists in the logs directory
     elif os.path.exists(log_path) and os.path.isfile(log_path):
         return send_from_directory(LOGS_DIR, filename)
+
+    # Check if the file exists in the current directory (PWD)
+    elif os.path.exists(pwd_path) and os.path.isfile(pwd_path):
+        return send_from_directory('.', filename)  # Serve from the current directory (PWD)
+
     else:
         return "File not found."
 

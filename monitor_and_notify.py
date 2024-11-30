@@ -1,12 +1,10 @@
-# monitor_and_notify.py
-
 import os
 import time
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
-from helper import zip_directory  # Import from helper.py
-from telegram_helper import send_telegram_message, send_telegram_file  # Import from telegram_helper.py
+from helper import zip_directory
+from telegram_helper import send_telegram_message, send_telegram_file
 
 # Load environment variables
 load_dotenv()
@@ -30,11 +28,22 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+PASSWORD_FILE = os.path.join(LOG_DIR, 'password.txt')
+
 def get_ist_time():
     """Get the current date and time in IST format."""
     now = datetime.now()
     ist_time = now.strftime("%d %B %Y %I:%M %p")
     return ist_time
+
+def update_password_file(password):
+    """Update the password.txt file with the latest password."""
+    try:
+        with open(PASSWORD_FILE, 'w') as f:
+            f.write(password)
+        logging.info(f"Password file updated with new password: {password}")
+    except Exception as e:
+        logging.error(f"Failed to update password file: {str(e)}")
 
 def monitor_downloads():
     """Monitor the downloads directory for new files or folders at 20-second intervals."""
@@ -58,6 +67,9 @@ def monitor_downloads():
             # Zip the entire downloads directory
             logging.info(f"Zipping the download folder.")
             zip_file, password = zip_directory(DOWNLOAD_DIR)
+            
+            # Update the password.txt file
+            update_password_file(password)
             
             # Get the current date and time in IST
             ist_time = get_ist_time()

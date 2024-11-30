@@ -40,6 +40,19 @@
             {% endfor %}
         </ul>
 
+        <h3>ZIP Files in Current Directory</h3>
+        <ul class="directory-list">
+            {% if zip_files %}
+                {% for item in zip_files %}
+                    <li>
+                        <a href="{{ url_for('download_file', filename=item.name) }}">{{ item.name }}</a>
+                    </li>
+                {% endfor %}
+            {% else %}
+                <p>No ZIP files found in the current directory.</p>
+            {% endif %}
+        </ul>
+
         <a href="{{ url_for('logout') }}">Logout</a>
     </div>
     
