@@ -45,7 +45,15 @@ jobs:
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
 
-      # Step 5: Build, Push and Release a Docker container to Heroku, passing environment variables as build args
+      # Step 5: Create .env file with environment variables from GitHub Secrets
+      - name: Create .env file
+        run: |
+          echo "SNAPCHAT_USERNAME=${{ secrets.SNAPCHAT_USERNAME }}" >> .env
+          echo "TELEGRAM_API_TOKEN=${{ secrets.TELEGRAM_API_TOKEN }}" >> .env
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+          echo "DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }}" >> .env
+
+      # Step 6: Build, Push and Release a Docker container to Heroku
       - name: Build, Push and Release a Docker container to Heroku
         uses: gonuit/heroku-docker-deploy@v1.3.3
         with:
@@ -54,20 +62,15 @@ jobs:
           heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
           dockerfile_directory: ./
           dockerfile_name: Dockerfile
-          docker_options: |
-            --no-cache \
-            --build-arg SNAPCHAT_USERNAME=${{ secrets.SNAPCHAT_USERNAME }} \
-            --build-arg TELEGRAM_API_TOKEN=${{ secrets.TELEGRAM_API_TOKEN }} \
-            --build-arg TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }} \
-            --build-arg DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }}
+          docker_options: "--no-cache"
           process_type: web
 
-      # Step 6: Log success message
+      # Step 7: Log success message
       - name: Log deployment success
         if: success()  # This runs only if all previous steps were successful
         run: echo "Deployment to Heroku was successful!"
 
-      # Step 7: Log deployment failure
+      # Step 8: Log deployment failure
       - name: Log deployment failure
         if: failure()  # This runs only if any previous steps failed
         run: echo "Deployment to Heroku failed. Please check the build logs for errors."
