@@ -44,7 +44,7 @@ def monitor_downloads():
             last_seen_files.add(os.path.join(root, file))
     
     while True:
-        time.sleep(20)  # Sleep for 20 seconds between checks
+        time.sleep(600)  # Sleep for 20 seconds between checks
         current_files = set()
         for root, dirs, files in os.walk(DOWNLOAD_DIR):
             for file in files:
