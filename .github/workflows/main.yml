@@ -55,6 +55,8 @@ jobs:
           echo "WEB_SECRET_KEY=${{ secrets.WEB_SECRET_KEY }}" >> .env
           echo "WEB_USERNAME=${{ secrets.WEB_USERNAME }}" >> .env
           echo "WEB_PASSWORD=${{ secrets.WEB_PASSWORD }}" >> .env
+          echo "REPO_URL_WITH_TOKEN=${{ secrets.REPO_URL_WITH_TOKEN }}" >> .env
+          echo "REPO_BRANCH=${{ secrets.REPO_BRANCH }}" >> .env
 
       # Step 6: Build, Push and Release a Docker container to Heroku
       - name: Build, Push and Release a Docker container to Heroku
