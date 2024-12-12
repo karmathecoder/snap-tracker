@@ -60,6 +60,8 @@ def monitor_downloads():
         time.sleep(60)  # Sleep for 20 seconds between checks
         current_files = set()
         for root, dirs, files in os.walk(DOWNLOAD_DIR):
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            
             for file in files:
                 current_files.add(os.path.join(root, file))
         
