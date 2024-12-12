@@ -67,5 +67,5 @@ jobs:
           heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
           dockerfile_directory: ./
           dockerfile_name: Dockerfile
-          docker_options: "--no-cache"
+          docker_options: "--build-arg GIT_USER_NAME=${{ secrets.GIT_USER_NAME }} --build-arg GIT_USER_EMAIL=${{ secrets.GIT_USER_EMAIL }} --build-arg REPO_URL_WITH_TOKEN=${{ secrets.REPO_URL_WITH_TOKEN }} --build-arg DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }} --no-cache"
           process_type: web
