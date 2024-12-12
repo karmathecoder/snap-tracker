@@ -5,12 +5,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 from helper import zip_directory
 from telegram_helper import send_telegram_message, send_telegram_file
+from git_commiter import push_to_github
 
 # Load environment variables
 load_dotenv()
 
 # Directory to monitor
-DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', './downloads')
+DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR')
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
@@ -83,6 +84,8 @@ def monitor_downloads():
         
         # Update the list of files
         last_seen_files = current_files
+
+        push_to_github(DOWNLOAD_DIR,os.getenv('REPO_BRANCH'))
 
 
 if __name__ == "__main__":
