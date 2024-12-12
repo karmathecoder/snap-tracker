@@ -7,24 +7,22 @@ RUN apk update && apk add --no-cache supervisor git bash
 WORKDIR /app
 
 # Copy requirements file to the container
-COPY Requirements.txt .
+COPY Requirements.txt . 
 
 # Install dependencies
 RUN pip install --no-cache-dir -r Requirements.txt
 
-# Configure Git with username and email
-# You can set these values through environment variables or directly in the Dockerfile.
-# Here, we're assuming the username and email are provided in the .env file.
+# Configure Git with username and email for the cloned repository (not globally)
 ARG GIT_USER_NAME
 ARG GIT_USER_EMAIL
-RUN git config --global user.name "${GIT_USER_NAME}" && \
-    git config --global user.email "${GIT_USER_EMAIL}"
 
 # Clone the repository using the DOWNLOAD_DIR environment variable
-# Assuming you have the repo URL stored in DOWNLOAD_DIR
 ARG REPO_URL_WITH_TOKEN
 ARG DOWNLOAD_DIR
-RUN git clone ${REPO_URL_WITH_TOKEN} ${DOWNLOAD_DIR}
+RUN git clone ${REPO_URL_WITH_TOKEN} ${DOWNLOAD_DIR} && \
+    cd ${DOWNLOAD_DIR} && \
+    git config user.name "${GIT_USER_NAME}" && \
+    git config user.email "${GIT_USER_EMAIL}"
 
 # Copy the entire project to the container
 COPY . .
