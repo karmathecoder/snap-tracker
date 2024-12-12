@@ -38,27 +38,32 @@ def push_to_github(folder_path, branch='main'):
     :param branch: The branch to push to. Default is 'main'.
     """
     try:
-        # Change to the target directory
-        os.chdir(folder_path)
-        logging.info(f"Changed working directory to: {folder_path}")
-
-        # Check for changes to commit
-        result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True)
+        # Check for changes to commit in the specified directory without changing the working directory
+        result = subprocess.run(
+            ['git', 'status', '--porcelain'], 
+            capture_output=True, text=True, cwd=folder_path
+        )
 
         # If there are no changes, exit without errors
         if not result.stdout.strip():
             logging.info("No changes to commit. Exiting.")
             return
 
-        # Add all changes
-        subprocess.run(['git', 'add', '.'], check=True)
+        # Add all changes in the specified directory
+        subprocess.run(
+            ['git', 'add', '.'], 
+            check=True, cwd=folder_path
+        )
         logging.info("All changes added to the staging area.")
 
         # Use the IST timestamp as the commit message
         commit_message = f"Commit made at {get_ist_time()}"
         
-        # Commit the changes
-        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+        # Commit the changes in the specified directory
+        subprocess.run(
+            ['git', 'commit', '-m', commit_message], 
+            check=True, cwd=folder_path
+        )
         logging.info(f"Changes committed with message: {commit_message}")
 
         # Get GitHub repository URL from environment variables
@@ -67,8 +72,11 @@ def push_to_github(folder_path, branch='main'):
             logging.error("GitHub repository URL not found in the .env file.")
             return
 
-        # Push to the specified branch
-        subprocess.run(['git', 'push', repo_url, branch], check=True)
+        # Push to the specified branch in the specified directory
+        subprocess.run(
+            ['git', 'push', repo_url, branch], 
+            check=True, cwd=folder_path
+        )
         logging.info(f"Changes successfully pushed to {branch} branch on GitHub!")
 
     except subprocess.CalledProcessError as e:
