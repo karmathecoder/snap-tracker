@@ -50,6 +50,9 @@ def monitor_downloads():
     """Monitor the downloads directory for new files or folders at 20-second intervals."""
     last_seen_files = set()
     for root, dirs, files in os.walk(DOWNLOAD_DIR):
+        # Skip directories starting with a dot
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+
         for file in files:
             last_seen_files.add(os.path.join(root, file))
     
@@ -77,7 +80,7 @@ def monitor_downloads():
             
             # Send a Telegram message about new files
             send_telegram_message(f"New Snapchat story downloaded.\nPassword: <code>{password}</code>\nDate & Time: {ist_time}")
-            send_telegram_file(zip_file)
+            # send_telegram_file(zip_file)
 
             # Log the activity
             logging.info(f"Sent {zip_file} with password: {password} at {ist_time}")
