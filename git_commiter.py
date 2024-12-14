@@ -48,6 +48,13 @@ def push_to_github(folder_path, branch='main'):
         if not result.stdout.strip():
             logging.info("No changes to commit. Exiting.")
             return
+        
+        # Pull the latest changes from the remote branch before adding, committing, and pushing
+        logging.info(f"Pulling the latest changes from the {branch} branch.")
+        subprocess.run(
+            ['git', 'pull', 'origin', branch], 
+            check=True, cwd=folder_path
+        )
 
         # Add all changes in the specified directory
         subprocess.run(
