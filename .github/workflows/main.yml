@@ -24,6 +24,12 @@ jobs:
           echo "REPO_URL_WITH_TOKEN=${{ secrets.REPO_URL_WITH_TOKEN }}" >> .env
           echo "REPO_BRANCH=${{ secrets.REPO_BRANCH }}" >> .env
 
+      - name: Upload .env file as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: env-file
+          path: .env
+          
       # Step 3: Deploy to Render
       - name: Deploy to Render
         uses: johnbeynon/render-deploy-action@v0.0.8
