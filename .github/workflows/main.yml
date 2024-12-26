@@ -1,51 +1,17 @@
-name: Deploy to Heroku
-
+name: Deploy to Render
 on:
   push:
     branches: [master]
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Check out your repository
+      # Step 1: Check out repository
       - name: Checkout
         uses: actions/checkout@v2
 
-      # Step 2: Log in to Heroku CLI using HEROKU_API_KEY
-      - name: Log in to Heroku CLI
-        run: |
-          echo ${{ secrets.HEROKU_API_KEY }} | heroku auth:token
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-
-      # Step 3: Check if the Heroku app exists, if not, create it
-      - name: Check if Heroku app exists
-        id: heroku_app_check
-        run: |
-          if heroku apps:info --app ${{ secrets.HEROKU_APP_NAME }}; then
-            echo "Heroku app exists."
-          else
-            echo "Heroku app does not exist. Creating it..."
-            heroku apps:create ${{ secrets.HEROKU_APP_NAME }}
-          fi
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-
-      # Step 4: Set Heroku stack to container only if it's not already set
-      - name: Ensure Heroku stack is set to container
-        run: |
-          current_stack=$(heroku stack --app ${{ secrets.HEROKU_APP_NAME }} | grep '*' | awk '{print $2}')
-          if [ "$current_stack" != "container" ]; then
-            echo "Current stack is $current_stack. Setting stack to container..."
-            heroku stack:set container --app ${{ secrets.HEROKU_APP_NAME }}
-          else
-            echo "App is already on the container stack."
-          fi
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-
-      # Step 5: Create .env file with environment variables from GitHub Secrets
+      # Step 2: Create .env file with environment variables
       - name: Create .env file
         run: |
           echo "SNAPCHAT_USERNAME=${{ secrets.SNAPCHAT_USERNAME }}" >> .env
@@ -58,14 +24,9 @@ jobs:
           echo "REPO_URL_WITH_TOKEN=${{ secrets.REPO_URL_WITH_TOKEN }}" >> .env
           echo "REPO_BRANCH=${{ secrets.REPO_BRANCH }}" >> .env
 
-      # Step 6: Build, Push and Release a Docker container to Heroku
-      - name: Build, Push and Release a Docker container to Heroku
-        uses: gonuit/heroku-docker-deploy@v1.3.3
+      # Step 3: Deploy to Render
+      - name: Deploy to Render
+        uses: johnbeynon/render-deploy-action@v0.0.8
         with:
-          email: ${{ secrets.HEROKU_EMAIL }}
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-          dockerfile_directory: ./
-          dockerfile_name: Dockerfile
-          docker_options: "--build-arg GIT_USER_NAME=${{ secrets.GIT_USER_NAME }} --build-arg GIT_USER_EMAIL=${{ secrets.GIT_USER_EMAIL }} --build-arg REPO_URL_WITH_TOKEN=${{ secrets.REPO_URL_WITH_TOKEN }} --build-arg DOWNLOAD_DIR=${{ secrets.DOWNLOAD_DIR }} --no-cache"
-          process_type: web
+          service-id: ${{ secrets.RENDER_SERVICE_ID }} # Find this in Render dashboard URL
+          api-key: ${{ secrets.RENDER_API_KEY }}       # Get this from Render dashboard
