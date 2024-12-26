@@ -29,7 +29,8 @@ jobs:
         with:
           name: env-file
           path: .env
-          
+          include-hidden-files: true
+
       # Step 3: Deploy to Render
       - name: Deploy to Render
         uses: johnbeynon/render-deploy-action@v0.0.8
