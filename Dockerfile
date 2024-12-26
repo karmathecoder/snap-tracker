@@ -12,18 +12,13 @@ COPY Requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r Requirements.txt
 
-ENV GIT_USER_NAME=$GIT_USER_NAME
-ENV GIT_USER_EMAIL=$GIT_USER_EMAIL
-ENV REPO_URL_WITH_TOKEN=$REPO_URL_WITH_TOKEN
-ENV DOWNLOAD_DIR=$DOWNLOAD_DIR
+# Configure Git with username and email for the cloned repository (not globally)
+ARG GIT_USER_NAME
+ARG GIT_USER_EMAIL
 
-# # Configure Git with username and email for the cloned repository (not globally)
-# ARG GIT_USER_NAME
-# ARG GIT_USER_EMAIL
-
-# # Clone the repository using the DOWNLOAD_DIR environment variable
-# ARG REPO_URL_WITH_TOKEN
-# ARG DOWNLOAD_DIR
+# Clone the repository using the DOWNLOAD_DIR environment variable
+ARG REPO_URL_WITH_TOKEN
+ARG DOWNLOAD_DIR
 
 RUN git clone ${REPO_URL_WITH_TOKEN} ${DOWNLOAD_DIR} && \
     cd ${DOWNLOAD_DIR} && \
