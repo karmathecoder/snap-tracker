@@ -28,8 +28,10 @@ RUN git clone ${REPO_URL_WITH_TOKEN} ${DOWNLOAD_DIR} && \
 # Copy the entire project to the container
 COPY . .
 
-# Create the logs directory inside the container
-RUN mkdir -p /app/logs
+# Create necessary directories and set permissions
+RUN mkdir -p /app/logs && \
+    mkdir -p /app/patches/modified_files && \
+    chmod +x /app/patches/module_patches.sh
 
 # Supervisor configuration for running multiple processes
 COPY supervisord.conf /etc/supervisord.conf
@@ -37,5 +39,5 @@ COPY supervisord.conf /etc/supervisord.conf
 # Expose Flask's default port (5000 for Gunicorn)
 EXPOSE $PORT
 
-# Run supervisor to manage processes
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# First run the patch script to modify the installed package, then start supervisor
+CMD ["/bin/bash", "-c", "/app/patches/module_patches.sh && /usr/bin/supervisord -c /etc/supervisord.conf"]
