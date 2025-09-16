@@ -1,10 +1,8 @@
 import os
 import time
-import logging
-from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from dotenv import load_dotenv
-# Removed zip_directory import to save storage
+from logger_config import system_logger, log_error_with_context, log_function_entry, log_function_exit
 from telegram_helper import send_telegram_message, send_telegram_file
 from git_commiter import push_to_github
 
@@ -16,52 +14,25 @@ DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR')
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
-    print(f"Created missing directory: {DOWNLOAD_DIR}")
-
-# Initialize improved logging with rotation
-LOG_DIR = './logs'
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
-
-# Create logger with rotating file handler
-logger = logging.getLogger('monitor_notify')
-logger.setLevel(logging.INFO)
-
-# Rotating file handler (3MB max, keep 2 backup files)
-file_handler = RotatingFileHandler(
-    os.path.join(LOG_DIR, 'monitor_and_notify.log'),
-    maxBytes=3*1024*1024,  # 3MB
-    backupCount=2
-)
-file_handler.setLevel(logging.INFO)
-
-# Console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# Formatter
-formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-file_handler.setFormatter(formatter)
-console_handler.setFormatter(formatter)
-
-# Add handlers
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-logger.propagate = False
-
-PASSWORD_FILE = os.path.join(LOG_DIR, 'password.txt')
+    system_logger.info(f"Created missing directory: {DOWNLOAD_DIR}")
+else:
+    system_logger.info(f"Monitoring directory: {DOWNLOAD_DIR}")
 
 def get_ist_time():
     """Get the current date and time in IST format."""
-    now = datetime.now()
-    ist_time = now.strftime("%d %B %Y %I:%M %p")
-    return ist_time
+    log_function_entry(system_logger, "get_ist_time")
+    try:
+        now = datetime.now()
+        ist_time = now.strftime("%d %B %Y %I:%M %p")
+        log_function_exit(system_logger, "get_ist_time", ist_time)
+        return ist_time
+    except Exception as e:
+        log_error_with_context(system_logger, e, "Getting IST time")
+        return "Unknown time"
 
 def log_download_summary():
     """Log summary of downloads directory for tracking"""
+    log_function_entry(system_logger, "log_download_summary")
     try:
         total_files = 0
         total_size = 0
@@ -73,89 +44,143 @@ def log_download_summary():
                     total_files += 1
                     total_size += os.path.getsize(file_path)
         
-        logger.info(f"Download directory summary: {total_files} files, {total_size / (1024*1024):.2f} MB total")
+        system_logger.info(f"Download directory summary: {total_files} files, {total_size / (1024*1024):.2f} MB total")
+        log_function_exit(system_logger, "log_download_summary", f"{total_files} files, {total_size / (1024*1024):.2f} MB")
         return total_files, total_size
     except Exception as e:
-        logger.error(f"Error calculating download summary: {str(e)}")
+        log_error_with_context(system_logger, e, "Calculating download summary")
         return 0, 0
 
 def monitor_downloads():
-    """Monitor the downloads directory for new files or folders at 20-second intervals."""
-    last_seen_files = set()
-    for root, dirs, files in os.walk(DOWNLOAD_DIR):
-        # Skip directories starting with a dot
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
-
-        for file in files:
-            last_seen_files.add(os.path.join(root, file))
+    """Monitor the downloads directory for new files or folders at 10-minute intervals."""
+    log_function_entry(system_logger, "monitor_downloads", download_dir=DOWNLOAD_DIR)
     
-    while True:
-        time.sleep(600)  
-        current_files = set()
+    system_logger.info("Starting file monitoring system")
+    last_seen_files = set()
+    
+    # Initial scan
+    try:
         for root, dirs, files in os.walk(DOWNLOAD_DIR):
             dirs[:] = [d for d in dirs if not d.startswith('.')]
-
             for file in files:
-                current_files.add(os.path.join(root, file))
-        
-        # Check for new files
-        new_files = current_files - last_seen_files
-        
-        if new_files:
-            logger.info(f"New files detected: {len(new_files)} files - {[os.path.basename(f) for f in list(new_files)[:5]]}{'...' if len(new_files) > 5 else ''}")
-            
-            # Calculate storage info for notification
-            try:
-                total_size = sum(os.path.getsize(f) for f in new_files if os.path.exists(f))
-                logger.info(f"New files total size: {total_size / (1024*1024):.2f} MB")
-            except Exception as e:
-                logger.warning(f"Could not calculate new files size: {str(e)}")
-                total_size = 0
-            
-            # Get the current date and time in IST
-            ist_time = get_ist_time()
-            
-            # Prepare file list for notification
-            file_names = [os.path.basename(f) for f in new_files]
-            
-            # Send Telegram notification without zip
-            try:
-                message = f"📥 New Snapchat story downloaded\n\n"
-                message += f"📁 Files: {len(new_files)}\n"
-                message += f"📊 Size: {total_size / (1024*1024):.2f} MB\n"
-                message += f"🕒 Time: {ist_time}\n\n"
-                
-                if len(file_names) <= 5:
-                    message += f"📋 Files:\n" + "\n".join([f"• {name}" for name in file_names])
-                else:
-                    message += f"📋 Files (showing first 5):\n" + "\n".join([f"• {name}" for name in file_names[:5]])
-                    message += f"\n... and {len(file_names) - 5} more files"
-                
-                message += f"\n\n✅ Files pushed to GitHub repository"
-                
-                send_telegram_message(message)
-                logger.info(f"Telegram notification sent for {len(new_files)} new files at {ist_time}")
-                
-            except Exception as e:
-                logger.error(f"Error sending telegram notification: {str(e)}")
-        
-        # Update the list of files
-        last_seen_files = current_files
-
-        # Push to GitHub (one-way, incremental)
+                last_seen_files.add(os.path.join(root, file))
+        system_logger.info(f"Initial scan complete: {len(last_seen_files)} files found")
+    except Exception as e:
+        log_error_with_context(system_logger, e, "Initial directory scan")
+    
+    cycle_count = 0
+    while True:
         try:
-            push_to_github(DOWNLOAD_DIR, os.getenv('REPO_BRANCH'))
-            logger.info("Git push operation completed")
+            cycle_count += 1
+            system_logger.debug(f"Starting monitoring cycle #{cycle_count}")
+            
+            time.sleep(600)  # 10 minutes
+            current_files = set()
+            
+            # Scan for current files
+            try:
+                for root, dirs, files in os.walk(DOWNLOAD_DIR):
+                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+                    for file in files:
+                        current_files.add(os.path.join(root, file))
+                system_logger.debug(f"Current scan: {len(current_files)} files found")
+            except Exception as e:
+                log_error_with_context(system_logger, e, "Directory scanning")
+                continue
+            
+            # Check for new files
+            new_files = current_files - last_seen_files
+            
+            if new_files:
+                system_logger.info(f"NEW FILES DETECTED: {len(new_files)} files")
+                for file in new_files:
+                    system_logger.info(f"  -> {file}")
+                
+                # Calculate storage info
+                total_size = 0
+                try:
+                    for f in new_files:
+                        if os.path.exists(f):
+                            size = os.path.getsize(f)
+                            total_size += size
+                            system_logger.debug(f"File size: {f} = {size} bytes")
+                    system_logger.info(f"Total new files size: {total_size / (1024*1024):.2f} MB")
+                except Exception as e:
+                    log_error_with_context(system_logger, e, "Calculating file sizes")
+                    total_size = 0
+                
+                # Get timestamp
+                ist_time = get_ist_time()
+                file_names = [os.path.basename(f) for f in new_files]
+                
+                # Send Telegram notification
+                try:
+                    system_logger.info("Preparing Telegram notification")
+                    message = f"📥 New Snapchat story downloaded\n\n"
+                    message += f"📁 Files: {len(new_files)}\n"
+                    message += f"📊 Size: {total_size / (1024*1024):.2f} MB\n"
+                    message += f"🕒 Time: {ist_time}\n\n"
+                    
+                    if len(file_names) <= 5:
+                        message += f"📋 Files:\n" + "\n".join([f"• {name}" for name in file_names])
+                    else:
+                        message += f"📋 Files (showing first 5):\n" + "\n".join([f"• {name}" for name in file_names[:5]])
+                        message += f"\n... and {len(file_names) - 5} more files"
+                    
+                    system_logger.debug(f"Telegram message prepared: {len(message)} characters")
+                    
+                    # Push to GitHub first
+                    system_logger.info("Starting GitHub push operation")
+                    push_result = push_to_github(DOWNLOAD_DIR, os.getenv('REPO_BRANCH'))
+                    
+                    message += f"\n\n✅ Files pushed to GitHub repository"
+                    
+                    system_logger.info("Sending Telegram notification")
+                    send_telegram_message(message)
+                    system_logger.info(f"SUCCESS: Notification sent for {len(new_files)} files")
+                    
+                except Exception as e:
+                    log_error_with_context(system_logger, e, "Telegram notification process")
+            else:
+                system_logger.debug(f"No new files detected in cycle #{cycle_count}")
+            
+            # Update file list
+            last_seen_files = current_files
+            system_logger.debug(f"Cycle #{cycle_count} completed successfully")
+            
         except Exception as e:
-            logger.error(f"Error during git push: {str(e)}")
+            log_error_with_context(system_logger, e, f"Monitoring cycle #{cycle_count}")
+            system_logger.warning("Continuing monitoring despite error")
+            time.sleep(60)  # Wait 1 minute before retrying
 
 
 if __name__ == "__main__":
     try:
-        # Send the "Hi" message when the script starts
-        send_telegram_message("Hi! Monitoring has started.")
+        system_logger.info("MONITOR_AND_NOTIFY STARTUP")
+        
+        # Log environment variables
+        system_logger.info(f"DOWNLOAD_DIR: {DOWNLOAD_DIR}")
+        system_logger.info(f"REPO_BRANCH: {os.getenv('REPO_BRANCH')}")
+        
+        # Send startup message
+        try:
+            startup_msg = "🚀 Snap-Tracker Monitoring Started\n\n"
+            startup_msg += f"📂 Watching: {DOWNLOAD_DIR}\n"
+            startup_msg += f"⏱️ Check interval: 10 minutes\n"
+            startup_msg += f"🔄 Git push: Incremental, one-way\n"
+            startup_msg += f"📊 Storage optimized: No zip files"
+            
+            send_telegram_message(startup_msg)
+            system_logger.info("Startup notification sent")
+        except Exception as e:
+            log_error_with_context(system_logger, e, "Sending startup notification")
 
-        logger.info("Starting main execution")
+        # Start monitoring
+        system_logger.info("Starting download monitoring")
         monitor_downloads()
+        
+    except KeyboardInterrupt:
+        system_logger.info("Monitoring stopped by user (Ctrl+C)")
     except Exception as e:
-        logger.error(f"Error in the main execution: {str(e)}")
+        log_error_with_context(system_logger, e, "Main execution")
+        system_logger.critical("SYSTEM FAILURE - Monitor stopped")

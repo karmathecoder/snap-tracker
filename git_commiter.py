@@ -1,50 +1,13 @@
 import os
 import subprocess
-import logging
 import json
 import hashlib
-from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
+from logger_config import system_logger, log_error_with_context, log_function_entry, log_function_exit
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Set up improved logging configuration with rotation
-log_folder = 'logs'
-os.makedirs(log_folder, exist_ok=True)
-log_filename = os.path.join(log_folder, 'github_push.log')
-
-# Create logger with rotating file handler to manage log size
-logger = logging.getLogger('git_commiter')
-logger.setLevel(logging.INFO)
-
-# Create rotating file handler (5MB max, keep 2 backup files)
-file_handler = RotatingFileHandler(
-    log_filename, 
-    maxBytes=5*1024*1024,  # 5MB
-    backupCount=2
-)
-file_handler.setLevel(logging.INFO)
-
-# Create console handler for immediate feedback
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# Create formatter
-formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-file_handler.setFormatter(formatter)
-console_handler.setFormatter(formatter)
-
-# Add handlers to logger
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
-# Prevent duplicate logs
-logger.propagate = False
 
 # File to track pushed files state
 PUSHED_FILES_TRACKER = 'logs/pushed_files_tracker.json'
@@ -67,28 +30,33 @@ def get_file_hash(file_path):
         with open(file_path, 'rb') as f:
             return hashlib.md5(f.read()).hexdigest()
     except Exception as e:
-        logger.error(f"Error calculating hash for {file_path}: {str(e)}")
+        system_logger.error(f"Error calculating hash for {file_path}: {str(e)}")
         return None
 
 def load_pushed_files_tracker():
     """Load the tracker of previously pushed files"""
+    log_function_entry(system_logger, "load_pushed_files_tracker")
     if os.path.exists(PUSHED_FILES_TRACKER):
         try:
             with open(PUSHED_FILES_TRACKER, 'r') as f:
-                return json.load(f)
+                data = json.load(f)
+            system_logger.debug(f"Loaded tracker with {len(data)} files")
+            return data
         except Exception as e:
-            logger.error(f"Error loading pushed files tracker: {str(e)}")
+            log_error_with_context(system_logger, e, "Loading pushed files tracker")
+    system_logger.debug("No existing tracker found, starting fresh")
     return {}
 
 def save_pushed_files_tracker(tracker_data):
     """Save the tracker of pushed files"""
+    log_function_entry(system_logger, "save_pushed_files_tracker", count=len(tracker_data))
     try:
         os.makedirs(os.path.dirname(PUSHED_FILES_TRACKER), exist_ok=True)
         with open(PUSHED_FILES_TRACKER, 'w') as f:
             json.dump(tracker_data, f, indent=2)
-        logger.info(f"Updated pushed files tracker with {len(tracker_data)} files")
+        system_logger.info(f"Updated pushed files tracker with {len(tracker_data)} files")
     except Exception as e:
-        logger.error(f"Error saving pushed files tracker: {str(e)}")
+        log_error_with_context(system_logger, e, "Saving pushed files tracker")
 
 def get_incremental_changes(folder_path):
     """Identify only new/modified files since last push"""
@@ -127,77 +95,95 @@ def incremental_push_to_github(folder_path, branch='main'):
     :param folder_path: Path to the folder containing the Git repository.
     :param branch: The branch to push to. Default is 'main'.
     """
+    log_function_entry(system_logger, "incremental_push_to_github", folder=folder_path, branch=branch)
+    
     try:
-        logger.info(f"Starting incremental GitHub push for {folder_path}")
+        system_logger.info(f"GIT PUSH: Starting incremental push for {folder_path}")
         
         # Get incremental changes
+        system_logger.debug("Analyzing file changes...")
         new_or_modified, current_files = get_incremental_changes(folder_path)
         
         if not new_or_modified:
-            logger.info("No new or modified files to push. Repository is up to date.")
-            return
+            system_logger.info("GIT PUSH: No changes detected, repository up to date")
+            return True
         
-        logger.info(f"Found {len(new_or_modified)} new/modified files: {new_or_modified[:5]}{'...' if len(new_or_modified) > 5 else ''}")
+        system_logger.info(f"GIT PUSH: Found {len(new_or_modified)} changed files")
+        for file in new_or_modified[:10]:  # Log first 10 files
+            system_logger.info(f"  CHANGED: {file}")
+        if len(new_or_modified) > 10:
+            system_logger.info(f"  ... and {len(new_or_modified) - 10} more files")
         
-        # Add only the new/modified files
+        # Add files to git
+        added_files = 0
         for file_path in new_or_modified:
+            system_logger.debug(f"Adding to git: {file_path}")
             add_result = subprocess.run(
                 ['git', 'add', file_path], 
                 capture_output=True, text=True, cwd=folder_path
             )
             if add_result.returncode != 0:
-                logger.error(f"Failed to add {file_path}: {add_result.stderr}")
+                system_logger.error(f"Failed to add {file_path}: {add_result.stderr}")
                 continue
+            added_files += 1
         
-        logger.info(f"Added {len(new_or_modified)} files to staging area")
+        system_logger.info(f"GIT ADD: Successfully added {added_files}/{len(new_or_modified)} files")
 
-        # Check if there are actually staged changes
+        # Verify staged changes
         status_result = subprocess.run(
             ['git', 'diff', '--cached', '--name-only'], 
             capture_output=True, text=True, cwd=folder_path
         )
         
-        if not status_result.stdout.strip():
-            logger.info("No staged changes found after adding files")
-            return
-
-        # Create incremental commit message
-        commit_message = f"Incremental update: {len(new_or_modified)} files at {get_ist_time()}"
+        staged_files = status_result.stdout.strip().split('\n') if status_result.stdout.strip() else []
+        system_logger.info(f"GIT STATUS: {len(staged_files)} files staged for commit")
         
-        # Commit the changes
+        if not staged_files or not staged_files[0]:
+            system_logger.warning("GIT STATUS: No staged changes found after adding files")
+            return False
+
+        # Create commit
+        commit_message = f"Incremental update: {len(staged_files)} files at {get_ist_time()}"
+        system_logger.info(f"GIT COMMIT: Creating commit with message: {commit_message}")
+        
         commit_result = subprocess.run(
             ['git', 'commit', '-m', commit_message], 
             capture_output=True, text=True, cwd=folder_path
         )
         if commit_result.returncode != 0:
-            logger.error(f"Failed to commit changes: {commit_result.stderr}")
-            return
-        logger.info(f"Incremental commit created: {commit_message}")
+            system_logger.error(f"GIT COMMIT FAILED: {commit_result.stderr}")
+            return False
+        
+        system_logger.info("GIT COMMIT: Successfully created commit")
 
-        # Get GitHub repository URL
+        # Get repository URL
         repo_url = os.getenv('REPO_URL_WITH_TOKEN')
         if not repo_url:
-            logger.error("GitHub repository URL not found in .env file")
-            return
+            system_logger.error("GIT PUSH FAILED: No REPO_URL_WITH_TOKEN in environment")
+            return False
 
-        # One-way push: just add our changes on top, no pull/fetch
-        # Use --force to ensure we push our changes without any remote checks
+        # Force push (one-way)
+        system_logger.info(f"GIT PUSH: Force pushing to {branch} (one-way, no pull)")
         push_result = subprocess.run(
             ['git', 'push', '--force', repo_url, branch], 
             capture_output=True, text=True, cwd=folder_path
         )
             
         if push_result.returncode == 0:
-            logger.info(f"Successfully force-pushed {len(new_or_modified)} files to {branch} branch (one-way)")
+            system_logger.info(f"GIT PUSH SUCCESS: Pushed {len(staged_files)} files to {branch}")
             # Update tracker only after successful push
             save_pushed_files_tracker(current_files)
+            return True
         else:
-            logger.error(f"One-way push failed: {push_result.stderr}")
+            system_logger.error(f"GIT PUSH FAILED: {push_result.stderr}")
+            return False
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"Git command failed: {e.cmd} - {e.stderr if hasattr(e, 'stderr') else str(e)}")
+        log_error_with_context(system_logger, e, f"Git subprocess error in {folder_path}")
+        return False
     except Exception as e:
-        logger.error(f"Unexpected error during incremental push: {str(e)}")
+        log_error_with_context(system_logger, e, f"Incremental push error in {folder_path}")
+        return False
 
 def push_to_github(folder_path, branch='main'):
     """Wrapper function that calls incremental push"""
