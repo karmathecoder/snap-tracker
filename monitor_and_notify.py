@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from dotenv import load_dotenv
 from helper import zip_directory
@@ -17,17 +18,39 @@ if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
     print(f"Created missing directory: {DOWNLOAD_DIR}")
 
-# Initialize logging
+# Initialize improved logging with rotation
 LOG_DIR = './logs'
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
-logging.basicConfig(
-    filename=os.path.join(LOG_DIR, 'monitor_and_notify.log'),
-    filemode='a',
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+# Create logger with rotating file handler
+logger = logging.getLogger('monitor_notify')
+logger.setLevel(logging.INFO)
+
+# Rotating file handler (3MB max, keep 2 backup files)
+file_handler = RotatingFileHandler(
+    os.path.join(LOG_DIR, 'monitor_and_notify.log'),
+    maxBytes=3*1024*1024,  # 3MB
+    backupCount=2
 )
+file_handler.setLevel(logging.INFO)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Formatter
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Add handlers
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+logger.propagate = False
 
 PASSWORD_FILE = os.path.join(LOG_DIR, 'password.txt')
 
@@ -42,9 +65,9 @@ def update_password_file(password):
     try:
         with open(PASSWORD_FILE, 'w') as f:
             f.write(password)
-        logging.info(f"Password file updated with new password: {password}")
+        logger.info(f"Password file updated with new password: {password}")
     except Exception as e:
-        logging.error(f"Failed to update password file: {str(e)}")
+        logger.error(f"Failed to update password file: {str(e)}")
 
 def monitor_downloads():
     """Monitor the downloads directory for new files or folders at 20-second intervals."""
@@ -69,23 +92,37 @@ def monitor_downloads():
         new_files = current_files - last_seen_files
         
         if new_files:
-            logging.info(f"New files detected: {new_files}")
+            logger.info(f"New files detected: {len(new_files)} files - {[os.path.basename(f) for f in list(new_files)[:5]]}{'...' if len(new_files) > 5 else ''}")
+            
+            # Check storage before zipping
+            try:
+                total_size = sum(os.path.getsize(f) for f in new_files if os.path.exists(f))
+                logger.info(f"New files total size: {total_size / (1024*1024):.2f} MB")
+            except Exception as e:
+                logger.warning(f"Could not calculate new files size: {str(e)}")
+            
             # Zip the entire downloads directory
-            logging.info(f"Zipping the download folder.")
-            zip_file, password = zip_directory(DOWNLOAD_DIR)
-            
-            # Update the password.txt file
-            update_password_file(password)
-            
-            # Get the current date and time in IST
-            ist_time = get_ist_time()
-            
-            # Send a Telegram message about new files
-            send_telegram_message(f"New Snapchat story downloaded.\nPassword: <code>{password}</code>\nDate & Time: {ist_time}")
-            # send_telegram_file(zip_file)
+            logger.info("Starting zip process for download folder")
+            try:
+                zip_file, password = zip_directory(DOWNLOAD_DIR)
+                logger.info(f"Successfully created zip: {zip_file}")
+                
+                # Update the password.txt file
+                update_password_file(password)
+                
+                # Get the current date and time in IST
+                ist_time = get_ist_time()
+                
+                # Send a Telegram message about new files
+                message = f"New Snapchat story downloaded.\nFiles: {len(new_files)}\nPassword: <code>{password}</code>\nDate & Time: {ist_time}"
+                send_telegram_message(message)
+                # send_telegram_file(zip_file)  # Commented to save bandwidth
 
-            # Log the activity
-            logging.info(f"Sent {zip_file} with password: {password} at {ist_time}")
+                # Log the activity
+                logger.info(f"Notification sent for {zip_file} with password: {password} at {ist_time}")
+                
+            except Exception as e:
+                logger.error(f"Error during zip/notification process: {str(e)}")
         
         # Update the list of files
         last_seen_files = current_files
@@ -98,7 +135,7 @@ if __name__ == "__main__":
         # Send the "Hi" message when the script starts
         send_telegram_message("Hi! Monitoring has started.")
 
-        logging.basicConfig(level=logging.INFO)
+        logger.info("Starting main execution")
         monitor_downloads()
     except Exception as e:
-        logging.error(f"Error in the main execution: {str(e)}")
+        logger.error(f"Error in the main execution: {str(e)}")

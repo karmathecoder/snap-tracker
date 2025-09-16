@@ -1,4 +1,6 @@
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session
 from urllib.parse import unquote
 from werkzeug.utils import secure_filename
@@ -12,6 +14,28 @@ app = Flask(__name__)
 # Secret key for session management
 app.secret_key = os.getenv('WEB_SECRET_KEY')
 
+# Setup improved logging for Flask app
+if not app.debug:
+    log_folder = 'logs'
+    os.makedirs(log_folder, exist_ok=True)
+    
+    file_handler = RotatingFileHandler(
+        os.path.join(log_folder, 'app.log'),
+        maxBytes=2*1024*1024,  # 2MB
+        backupCount=1
+    )
+    file_handler.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    
+    app.logger.addHandler(file_handler)
+    app.logger.setLevel(logging.INFO)
+    app.logger.info('Flask app startup')
+
 # Base directories (change as needed)
 DOWNLOADS_DIR = 'downloads'
 LOGS_DIR = 'logs'
@@ -20,7 +44,7 @@ LOGS_DIR = 'logs'
 USERNAME = os.getenv('WEB_USERNAME')
 PASSWORD = os.getenv('WEB_PASSWORD')
 
-print(USERNAME,PASSWORD)
+app.logger.info(f'Web interface configured for user: {USERNAME}')
 
 # Function to list files and directories in a given path
 def list_directory_contents(directory):
@@ -34,7 +58,7 @@ def list_directory_contents(directory):
             elif os.path.isfile(full_path):
                 contents.append({'name': item, 'type': 'file'})
     except FileNotFoundError:
-        pass
+        app.logger.warning(f'Directory not found: {directory}')
     return contents
 
 def list_zip_files_in_pwd():
@@ -44,7 +68,7 @@ def list_zip_files_in_pwd():
             if os.path.isfile(item) and item.endswith('.zip'):
                 contents.append({'name': item, 'type': 'file'})
     except FileNotFoundError:
-        pass
+        app.logger.warning('Current directory not accessible for zip file listing')
     return contents
 
 
@@ -66,14 +90,17 @@ def login():
         password = request.form['password']
         if username == USERNAME and password == PASSWORD:
             session['logged_in'] = True
+            app.logger.info(f'Successful login for user: {username}')
             return redirect(url_for('index'))
         else:
+            app.logger.warning(f'Failed login attempt for user: {username}')
             return "Invalid login credentials, please try again."
     return render_template('login.html')
 
 
 @app.route('/logout')
 def logout():
+    app.logger.info('User logged out')
     session['logged_in'] = False
     return redirect(url_for('login'))
 
@@ -98,6 +125,7 @@ def browse(subpath):
         contents = list_directory_contents(log_path)
         return render_template('browse.html', directory=subpath, contents=contents, base_directory=LOGS_DIR)
 
+    app.logger.error(f'Directory not found for subpath: {subpath}')
     return "Directory not found."
 
 
@@ -124,8 +152,10 @@ def download_file(filename):
         return send_from_directory('.', filename)  # Serve from the current directory (PWD)
 
     else:
+        app.logger.error(f'File not found: {filename}')
         return "File not found."
 
 
 if __name__ == '__main__':
+    app.logger.info('Starting Flask development server')
     app.run(debug=True)
