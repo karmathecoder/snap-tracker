@@ -160,11 +160,11 @@ def daily_cleanup():
         total_freed_space += size
         logger.info(f"Cleaned {count} old log files, freed {size:.2f} MB")
     
-    # Clean old zip files (keep for 1 day)
-    count, size = cleanup_zip_files(max_age_hours=24)
+    # Clean ALL zip files since we no longer use them
+    count, size = cleanup_zip_files(max_age_hours=0.1)  # Remove zip files older than 6 minutes
     total_removed_files += count
     total_freed_space += size
-    logger.info(f"Cleaned {count} old zip files, freed {size:.2f} MB")
+    logger.info(f"Cleaned {count} zip files (no longer needed), freed {size:.2f} MB")
     
     # Git cleanup if download directory is a git repo
     if os.path.exists(download_dir):
@@ -196,9 +196,9 @@ def emergency_cleanup():
         count, size = cleanup_old_files('logs', days_old=1)
         logger.info(f"Emergency: Cleaned {count} files, freed {size:.2f} MB from logs")
     
-    # Remove all zip files
-    count, size = cleanup_zip_files(max_age_hours=1)
-    logger.info(f"Emergency: Cleaned {count} zip files, freed {size:.2f} MB")
+    # Remove ALL zip files immediately
+    count, size = cleanup_zip_files(max_age_hours=0)
+    logger.info(f"Emergency: Cleaned {count} zip files (no longer needed), freed {size:.2f} MB")
 
 def check_storage_and_cleanup():
     """Check storage usage and perform cleanup if needed"""

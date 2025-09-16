@@ -180,26 +180,19 @@ def incremental_push_to_github(folder_path, branch='main'):
             logger.error("GitHub repository URL not found in .env file")
             return
 
-        # Push incrementally with force-with-lease
+        # One-way push: just add our changes on top, no pull/fetch
+        # Use --force to ensure we push our changes without any remote checks
         push_result = subprocess.run(
-            ['git', 'push', '--force-with-lease', repo_url, branch], 
+            ['git', 'push', '--force', repo_url, branch], 
             capture_output=True, text=True, cwd=folder_path
         )
-        
-        if push_result.returncode != 0:
-            logger.warning(f"Force-with-lease failed, trying regular push: {push_result.stderr}")
-            # Fallback to regular push
-            push_result = subprocess.run(
-                ['git', 'push', repo_url, branch], 
-                capture_output=True, text=True, cwd=folder_path
-            )
             
         if push_result.returncode == 0:
-            logger.info(f"Successfully pushed {len(new_or_modified)} files to {branch} branch")
+            logger.info(f"Successfully force-pushed {len(new_or_modified)} files to {branch} branch (one-way)")
             # Update tracker only after successful push
             save_pushed_files_tracker(current_files)
         else:
-            logger.error(f"Incremental push failed: {push_result.stderr}")
+            logger.error(f"One-way push failed: {push_result.stderr}")
 
     except subprocess.CalledProcessError as e:
         logger.error(f"Git command failed: {e.cmd} - {e.stderr if hasattr(e, 'stderr') else str(e)}")

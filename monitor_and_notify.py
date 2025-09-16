@@ -4,7 +4,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from dotenv import load_dotenv
-from helper import zip_directory
+# Removed zip_directory import to save storage
 from telegram_helper import send_telegram_message, send_telegram_file
 from git_commiter import push_to_github
 
@@ -60,14 +60,24 @@ def get_ist_time():
     ist_time = now.strftime("%d %B %Y %I:%M %p")
     return ist_time
 
-def update_password_file(password):
-    """Update the password.txt file with the latest password."""
+def log_download_summary():
+    """Log summary of downloads directory for tracking"""
     try:
-        with open(PASSWORD_FILE, 'w') as f:
-            f.write(password)
-        logger.info(f"Password file updated with new password: {password}")
+        total_files = 0
+        total_size = 0
+        for root, dirs, files in os.walk(DOWNLOAD_DIR):
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for file in files:
+                file_path = os.path.join(root, file)
+                if os.path.exists(file_path):
+                    total_files += 1
+                    total_size += os.path.getsize(file_path)
+        
+        logger.info(f"Download directory summary: {total_files} files, {total_size / (1024*1024):.2f} MB total")
+        return total_files, total_size
     except Exception as e:
-        logger.error(f"Failed to update password file: {str(e)}")
+        logger.error(f"Error calculating download summary: {str(e)}")
+        return 0, 0
 
 def monitor_downloads():
     """Monitor the downloads directory for new files or folders at 20-second intervals."""
@@ -94,40 +104,50 @@ def monitor_downloads():
         if new_files:
             logger.info(f"New files detected: {len(new_files)} files - {[os.path.basename(f) for f in list(new_files)[:5]]}{'...' if len(new_files) > 5 else ''}")
             
-            # Check storage before zipping
+            # Calculate storage info for notification
             try:
                 total_size = sum(os.path.getsize(f) for f in new_files if os.path.exists(f))
                 logger.info(f"New files total size: {total_size / (1024*1024):.2f} MB")
             except Exception as e:
                 logger.warning(f"Could not calculate new files size: {str(e)}")
+                total_size = 0
             
-            # Zip the entire downloads directory
-            logger.info("Starting zip process for download folder")
+            # Get the current date and time in IST
+            ist_time = get_ist_time()
+            
+            # Prepare file list for notification
+            file_names = [os.path.basename(f) for f in new_files]
+            
+            # Send Telegram notification without zip
             try:
-                zip_file, password = zip_directory(DOWNLOAD_DIR)
-                logger.info(f"Successfully created zip: {zip_file}")
+                message = f"📥 New Snapchat story downloaded\n\n"
+                message += f"📁 Files: {len(new_files)}\n"
+                message += f"📊 Size: {total_size / (1024*1024):.2f} MB\n"
+                message += f"🕒 Time: {ist_time}\n\n"
                 
-                # Update the password.txt file
-                update_password_file(password)
+                if len(file_names) <= 5:
+                    message += f"📋 Files:\n" + "\n".join([f"• {name}" for name in file_names])
+                else:
+                    message += f"📋 Files (showing first 5):\n" + "\n".join([f"• {name}" for name in file_names[:5]])
+                    message += f"\n... and {len(file_names) - 5} more files"
                 
-                # Get the current date and time in IST
-                ist_time = get_ist_time()
+                message += f"\n\n✅ Files pushed to GitHub repository"
                 
-                # Send a Telegram message about new files
-                message = f"New Snapchat story downloaded.\nFiles: {len(new_files)}\nPassword: <code>{password}</code>\nDate & Time: {ist_time}"
                 send_telegram_message(message)
-                # send_telegram_file(zip_file)  # Commented to save bandwidth
-
-                # Log the activity
-                logger.info(f"Notification sent for {zip_file} with password: {password} at {ist_time}")
+                logger.info(f"Telegram notification sent for {len(new_files)} new files at {ist_time}")
                 
             except Exception as e:
-                logger.error(f"Error during zip/notification process: {str(e)}")
+                logger.error(f"Error sending telegram notification: {str(e)}")
         
         # Update the list of files
         last_seen_files = current_files
 
-        push_to_github(DOWNLOAD_DIR,os.getenv('REPO_BRANCH'))
+        # Push to GitHub (one-way, incremental)
+        try:
+            push_to_github(DOWNLOAD_DIR, os.getenv('REPO_BRANCH'))
+            logger.info("Git push operation completed")
+        except Exception as e:
+            logger.error(f"Error during git push: {str(e)}")
 
 
 if __name__ == "__main__":
